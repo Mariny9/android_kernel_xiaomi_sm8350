@@ -3936,205 +3936,197 @@ void tfa98xx_remove_misc_device(struct tfa98xx *tfa98xx)
 }
 
 static int tfa98xx_i2c_probe(struct i2c_client *i2c,
-	const struct i2c_device_id *id)
-{
-	struct snd_soc_dai_driver *dai;
-	struct tfa98xx *tfa98xx;
-	struct device_node *np = i2c->dev.of_node;
-	//int irq_flags;
-	unsigned int reg;
-	int ret;
+                             const struct i2c_device_id *id) {
+  struct snd_soc_dai_driver *dai;
+  struct tfa98xx *tfa98xx;
+  struct device_node *np = i2c->dev.of_node;
+  // int irq_flags;
+  unsigned int reg;
+  int ret;
 
-	pr_info("addr=0x%x\n", i2c->addr);
+  pr_info("addr=0x%x\n", i2c->addr);
 
-	if (!i2c_check_functionality(i2c->adapter, I2C_FUNC_I2C)) {
-		dev_err(&i2c->dev, "check_functionality failed\n");
-		return -EIO;
-	}
+  if (!i2c_check_functionality(i2c->adapter, I2C_FUNC_I2C)) {
+    dev_err(&i2c->dev, "check_functionality failed\n");
+    return -EIO;
+  }
 
-	tfa98xx = devm_kzalloc(&i2c->dev, sizeof(struct tfa98xx), GFP_KERNEL);
-	if (tfa98xx == NULL)
-		return -ENOMEM;
+  tfa98xx = devm_kzalloc(&i2c->dev, sizeof(struct tfa98xx), GFP_KERNEL);
+  if (tfa98xx == NULL)
+    return -ENOMEM;
 
-	tfa98xx->dev = &i2c->dev;
-	tfa98xx->i2c = i2c;
-	tfa98xx->dsp_init = TFA98XX_DSP_INIT_STOPPED;
-	tfa98xx->rate = 48000; /* init to the default sample rate (48kHz) */
-	tfa98xx->tfa = NULL;
-	tfa98xx->tfa_mute_mode = TFA98XX_DEVICE_MUTE_OFF; /* the mute mode is disabled by default. */
-	tfa98xx->regmap = devm_regmap_init_i2c(i2c, &tfa98xx_regmap);
-	if (IS_ERR(tfa98xx->regmap)) {
-		ret = PTR_ERR(tfa98xx->regmap);
-		dev_err(&i2c->dev, "Failed to allocate register map: %d\n",
-			ret);
-		return ret;
-	}
+  tfa98xx->dev = &i2c->dev;
+  tfa98xx->i2c = i2c;
+  tfa98xx->dsp_init = TFA98XX_DSP_INIT_STOPPED;
+  tfa98xx->rate = 48000; /* init to the default sample rate (48kHz) */
+  tfa98xx->tfa = NULL;
+  tfa98xx->tfa_mute_mode =
+      TFA98XX_DEVICE_MUTE_OFF; /* the mute mode is disabled by default. */
+  tfa98xx->regmap = devm_regmap_init_i2c(i2c, &tfa98xx_regmap);
+  if (IS_ERR(tfa98xx->regmap)) {
+    ret = PTR_ERR(tfa98xx->regmap);
+    dev_err(&i2c->dev, "Failed to allocate register map: %d\n", ret);
+    return ret;
+  }
 
-	i2c_set_clientdata(i2c, tfa98xx);
-	mutex_init(&tfa98xx->dsp_lock);
-	init_waitqueue_head(&tfa98xx->wq);
+  i2c_set_clientdata(i2c, tfa98xx);
+  mutex_init(&tfa98xx->dsp_lock);
+  init_waitqueue_head(&tfa98xx->wq);
 
-	if (np) {
-		ret = tfa98xx_parse_dt(&i2c->dev, tfa98xx, np);
-		if (ret) {
-			dev_err(&i2c->dev, "Failed to parse DT node\n");
-			return ret;
-		}
-		if (no_start)
-			tfa98xx->irq_gpio = -1;
-		if (no_reset)
-			tfa98xx->reset_gpio = -1;
-	}
-	else {
-		tfa98xx->reset_gpio = -1;
-		tfa98xx->irq_gpio = -1;
-	}
+  if (np) {
+    ret = tfa98xx_parse_dt(&i2c->dev, tfa98xx, np);
+    if (ret) {
+      dev_err(&i2c->dev, "Failed to parse DT node\n");
+      return ret;
+    }
+    if (no_start)
+      tfa98xx->irq_gpio = -1;
+    if (no_reset)
+      tfa98xx->reset_gpio = -1;
+  } else {
+    tfa98xx->reset_gpio = -1;
+    tfa98xx->irq_gpio = -1;
+  }
 
-	if (gpio_is_valid(tfa98xx->reset_gpio)) {
-		ret = devm_gpio_request_one(&i2c->dev, tfa98xx->reset_gpio,
-			GPIOF_OUT_INIT_LOW, "TFA98XX_RST");
-		if (ret)
-			return ret;
-	}
+  if (gpio_is_valid(tfa98xx->reset_gpio)) {
+    ret = devm_gpio_request_one(&i2c->dev, tfa98xx->reset_gpio,
+                                GPIOF_OUT_INIT_LOW, "TFA98XX_RST");
+    if (ret)
+      return ret;
+  }
 
-	if (gpio_is_valid(tfa98xx->irq_gpio)) {
-		ret = devm_gpio_request_one(&i2c->dev, tfa98xx->irq_gpio,
-			GPIOF_DIR_IN, "TFA98XX_INT");
-		if (ret)
-			return ret;
-	}
+  if (gpio_is_valid(tfa98xx->irq_gpio)) {
+    ret = devm_gpio_request_one(&i2c->dev, tfa98xx->irq_gpio, GPIOF_DIR_IN,
+                                "TFA98XX_INT");
+    if (ret)
+      return ret;
+  }
 
-	if (gpio_is_valid(tfa98xx->spk_sw_gpio)) {
-		ret = devm_gpio_request_one(&i2c->dev, tfa98xx->spk_sw_gpio,
-			GPIOF_OUT_INIT_LOW, "TFA98XX_SPK_SW");
-		if (ret)
-			return ret;
-	}
+  if (gpio_is_valid(tfa98xx->spk_sw_gpio)) {
+    ret = devm_gpio_request_one(&i2c->dev, tfa98xx->spk_sw_gpio,
+                                GPIOF_OUT_INIT_LOW, "TFA98XX_SPK_SW");
+    if (ret)
+      return ret;
+  }
 
-	tfa98xx->spk_id_gpio_p = of_parse_phandle(np,
-				"nxp,spk-id-pin", 0);
+  tfa98xx->spk_id_gpio_p = of_parse_phandle(np, "nxp,spk-id-pin", 0);
 
-	if (!tfa98xx->spk_id_gpio_p) {
-		dev_err(&i2c->dev, "property %s not detected in node %s",
-				"nxp,spk-id-pin", np->full_name);
-	} else {
-		dev_err(&i2c->dev, "fw_name =%s\n", fw_name);
-	}
+  if (!tfa98xx->spk_id_gpio_p) {
+    dev_err(&i2c->dev, "property %s not detected in node %s", "nxp,spk-id-pin",
+            np->full_name);
+  } else {
+    dev_err(&i2c->dev, "fw_name =%s\n", fw_name);
+  }
 
-	/* Power up! */
-    /* we should reset chip only 1 times if all reset pin connected to 1 GPIO. */
-    if (0 == tfa98xx_device_count)
-    	tfa98xx_ext_reset(tfa98xx);
+  /* Power up! */
+  /* we should reset chip only 1 times if all reset pin connected to 1 GPIO. */
+  if (0 == tfa98xx_device_count)
+    tfa98xx_ext_reset(tfa98xx);
 
-	if ((no_start == 0) && (no_reset == 0)) {
-		ret = regmap_read(tfa98xx->regmap, 0x03, &reg);
-		if (ret < 0) {
-			dev_err(&i2c->dev, "Failed to read Revision register: %d\n",
-				ret);
-			return -EIO;
-		}
+  if ((no_start == 0) && (no_reset == 0)) {
+    ret = regmap_read(tfa98xx->regmap, 0x03, &reg);
+    if (ret < 0) {
+      dev_err(&i2c->dev, "Failed to read Revision register: %d\n", ret);
+      return -EIO;
+    }
 
-		tfa98xx->rev = reg & 0xff;
-		switch (tfa98xx->rev) {
-		case 0x72: /* tfa9872 */
-			pr_info("TFA9872 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
-			tfa98xx->flags |= TFA98XX_FLAG_CALIBRATION_CTL;
-			tfa98xx->flags |= TFA98XX_FLAG_REMOVE_PLOP_NOISE;
-			/* tfa98xx->flags |= TFA98XX_FLAG_LP_MODES; */
-			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
-			break;
-		case 0x73: /* tfa9873 */
-			pr_info("TFA9873 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
-			tfa98xx->flags |= TFA98XX_FLAG_CALIBRATION_CTL;
-			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
-			tfa98xx->flags |= TFA98XX_FLAG_ADAPT_NOISE_MODE; /***MCH_TO_TEST***/
-			break;
-		case 0x74: /* tfa9874 */
-			pr_info("TFA9874 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
-			tfa98xx->flags |= TFA98XX_FLAG_CALIBRATION_CTL;
-			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
-			break;
-		case 0x78: /* tfa9878 */
-			pr_info("TFA9878 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
-			tfa98xx->flags |= TFA98XX_FLAG_CALIBRATION_CTL;
-			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
-			break;
-		case 0x88: /* tfa9888 */
-			pr_info("TFA9888 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_STEREO_DEVICE;
-			tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
-			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
-			break;
-		case 0x13: /* tfa9912 */
-			pr_info("TFA9912 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
-			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
-			/* tfa98xx->flags |= TFA98XX_FLAG_TAPDET_AVAILABLE; */
-			break;
-		case 0x94: /* tfa9894 */
-			pr_info("TFA9894 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
-			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
-			tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
-			break;
-		case 0x80: /* tfa9890 */
-		case 0x81: /* tfa9890 */
-			pr_info("TFA9890 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
-			break;
-		case 0x92: /* tfa9891 */
-			pr_info("TFA9891 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_SAAM_AVAILABLE;
-			tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
-			break;
-		case 0x12: /* tfa9895 */
-			pr_info("TFA9895 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
-			break;
-		case 0x97:
-			pr_info("TFA9897 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
-			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
-			break;
-		case 0x96:
-			pr_info("TFA9896 detected\n");
-			tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
-			tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
-			break;
-		default:
-			pr_info("Unsupported device revision (0x%x)\n", reg & 0xff);
-			return -EINVAL;
-		}
-	}
+    tfa98xx->rev = reg & 0xff;
+    switch (tfa98xx->rev) {
+    case 0x72: /* tfa9872 */
+      pr_info("TFA9872 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
+      tfa98xx->flags |= TFA98XX_FLAG_CALIBRATION_CTL;
+      tfa98xx->flags |= TFA98XX_FLAG_REMOVE_PLOP_NOISE;
+      /* tfa98xx->flags |= TFA98XX_FLAG_LP_MODES; */
+      tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+      break;
+    case 0x73: /* tfa9873 */
+      pr_info("TFA9873 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
+      tfa98xx->flags |= TFA98XX_FLAG_CALIBRATION_CTL;
+      tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+      tfa98xx->flags |= TFA98XX_FLAG_ADAPT_NOISE_MODE; /***MCH_TO_TEST***/
+      break;
+    case 0x74: /* tfa9874 */
+      pr_info("TFA9874 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
+      tfa98xx->flags |= TFA98XX_FLAG_CALIBRATION_CTL;
+      tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+      break;
+    case 0x78: /* tfa9878 */
+      pr_info("TFA9878 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
+      tfa98xx->flags |= TFA98XX_FLAG_CALIBRATION_CTL;
+      tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+      break;
+    case 0x88: /* tfa9888 */
+      pr_info("TFA9888 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_STEREO_DEVICE;
+      tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
+      tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+      break;
+    case 0x13: /* tfa9912 */
+      pr_info("TFA9912 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
+      tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+      /* tfa98xx->flags |= TFA98XX_FLAG_TAPDET_AVAILABLE; */
+      break;
+    case 0x94: /* tfa9894 */
+      pr_info("TFA9894 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_MULTI_MIC_INPUTS;
+      tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+      tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
+      break;
+    case 0x80: /* tfa9890 */
+    case 0x81: /* tfa9890 */
+      pr_info("TFA9890 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
+      break;
+    case 0x92: /* tfa9891 */
+      pr_info("TFA9891 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_SAAM_AVAILABLE;
+      tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
+      break;
+    case 0x12: /* tfa9895 */
+      pr_info("TFA9895 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
+      break;
+    case 0x97:
+      pr_info("TFA9897 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
+      tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+      break;
+    case 0x96:
+      pr_info("TFA9896 detected\n");
+      tfa98xx->flags |= TFA98XX_FLAG_SKIP_INTERRUPTS;
+      tfa98xx->flags |= TFA98XX_FLAG_TDM_DEVICE;
+      break;
+    default:
+      pr_info("Unsupported device revision (0x%x)\n", reg & 0xff);
+      return -EINVAL;
+    }
+  }
 
-	tfa98xx->tfa = devm_kzalloc(&i2c->dev, sizeof(struct tfa_device), GFP_KERNEL);
-	if (tfa98xx->tfa == NULL)
-		return -ENOMEM;
+  tfa98xx->tfa = devm_kzalloc(&i2c->dev, sizeof(struct tfa_device), GFP_KERNEL);
+  if (tfa98xx->tfa == NULL)
+    return -ENOMEM;
 
-	tfa98xx->tfa->data = (void *)tfa98xx;
-	tfa98xx->tfa->cachep = tfa98xx_cache;
+  tfa98xx->tfa->data = (void *)tfa98xx;
+  tfa98xx->tfa->cachep = tfa98xx_cache;
 
-	/* Modify the stream names, by appending the i2c device address.
-	 * This is used with multicodec, in order to discriminate the devices.
-	 * Stream names appear in the dai definition and in the stream  	 .
-	 * We create copies of original structures because each device will
-	 * have its own instance of this structure, with its own address.
-	 */
-	dai = devm_kzalloc(&i2c->dev, sizeof(tfa98xx_dai), GFP_KERNEL);
-	if (!dai)
-		return -ENOMEM;
-	memcpy(dai, tfa98xx_dai, sizeof(tfa98xx_dai));
+  /* Modify the stream names, by appending the i2c device address.
+   * This is used with multicodec, in order to discriminate the devices.
+   * Stream names appear in the dai definition and in the stream  	 .
+   * We create copies of original structures because each device will
+   * have its own instance of this structure, with its own address.
+   */
+  dai = devm_kzalloc(&i2c->dev, sizeof(tfa98xx_dai), GFP_KERNEL);
+  if (!dai)
+    return -ENOMEM;
+  memcpy(dai, tfa98xx_dai, sizeof(tfa98xx_dai));
 
-	tfa98xx_append_i2c_address(&i2c->dev,
-		i2c,
-		NULL,
-		0,
-		dai,
-		ARRAY_SIZE(tfa98xx_dai));
+  tfa98xx_append_i2c_address(&i2c->dev, i2c, NULL, 0, dai,
+                             ARRAY_SIZE(tfa98xx_dai));
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0)
 	ret = devm_snd_soc_register_component(&i2c->dev,
